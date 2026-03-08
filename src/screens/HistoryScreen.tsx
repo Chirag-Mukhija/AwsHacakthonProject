@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography } from '../components/Typography';
 import { Card } from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
-import { Clock, ChevronDown, ChevronUp, FileText, CheckCircle2 } from 'lucide-react-native';
+import { Clock, ChevronDown, ChevronUp, FileText, CheckCircle2, Trash2, Bell } from 'lucide-react-native';
 import { useIsFocused } from '@react-navigation/native';
 
 export const HistoryScreen = () => {
@@ -40,6 +41,20 @@ export const HistoryScreen = () => {
 
   const toggleExpand = (id: string) => {
     setExpandedId(prev => (prev === id ? null : id));
+  };
+
+  const deleteSession = async (id: string) => {
+    // Optimistic removal
+    setSessions(prev => prev.filter(s => s.id !== id));
+    if (expandedId === id) setExpandedId(null);
+    
+    try {
+      const res = await fetch(`http://192.168.1.4:3000/api/session/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete history');
+    } catch (e) {
+      console.error('Failed to delete session:', e);
+      fetchHistory(); // Revert
+    }
   };
 
   return (
@@ -100,17 +115,6 @@ export const HistoryScreen = () => {
 
                 {isExpanded && (
                   <View style={[styles.expandedContent, { borderTopColor: colors.border }]}>
-                    {/* Transcript Full */}
-                    <View style={styles.section}>
-                      <View style={styles.sectionHeader}>
-                        <FileText color={colors.primaryAction} size={16} />
-                        <Typography variant="bodySmall" color={colors.textSecondary} style={styles.sectionTitle}>
-                          Transcript
-                        </Typography>
-                      </View>
-                      <Typography variant="body">{session.transcript}</Typography>
-                    </View>
-
                     {/* Extracted Tasks */}
                     {session.ai_output?.tasks?.length > 0 && (
                       <View style={styles.section}>
@@ -124,6 +128,24 @@ export const HistoryScreen = () => {
                           <View key={i} style={styles.listItem}>
                             <View style={[styles.bullet, { backgroundColor: colors.textSecondary }]} />
                             <Typography variant="body" style={task.completed ? { textDecorationLine: 'line-through', opacity: 0.5 } : {}}>{task.title}</Typography>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Extracted Reminders */}
+                    {session.ai_output?.reminders?.length > 0 && (
+                      <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                          <Bell color={'#F59E0B'} size={16} />
+                          <Typography variant="bodySmall" color={colors.textSecondary} style={styles.sectionTitle}>
+                            Reminders
+                          </Typography>
+                        </View>
+                        {session.ai_output.reminders.map((rem: any, i: number) => (
+                          <View key={i} style={styles.listItem}>
+                            <View style={[styles.bullet, { backgroundColor: colors.textSecondary }]} />
+                            <Typography variant="body">{rem.title}</Typography>
                           </View>
                         ))}
                       </View>
@@ -146,6 +168,13 @@ export const HistoryScreen = () => {
                         ))}
                       </View>
                     )}
+
+                    <TouchableOpacity onPress={() => deleteSession(session.id)} style={styles.deleteButton}>
+                      <Trash2 color={colors.danger} size={16} />
+                      <Typography variant="body" color={colors.danger} style={{ marginLeft: 8, fontWeight: '600' }}>
+                        Delete History
+                      </Typography>
+                    </TouchableOpacity>
                   </View>
                 )}
               </Card>
@@ -226,5 +255,14 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginRight: 10,
     marginLeft: 4,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#333',
   },
 });

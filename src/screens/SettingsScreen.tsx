@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, SafeAreaView, Switch, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography } from '../components/Typography';
 import { Card } from '../components/Card';
 import { useTheme } from '../context/ThemeContext';

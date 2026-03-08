@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography } from '../components/Typography';
 import { useTheme } from '../context/ThemeContext';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -45,7 +46,7 @@ export const ProcessingScreen = () => {
         const data = await response.json();
         
         setTimeout(() => {
-          navigation.replace('Segregation', { extractedData: data });
+          navigation.replace('Segregation', { extractedData: { ...data, transcript: textToProcess } });
         }, 1000); // give some buffer for animation
         
       } catch (error) {

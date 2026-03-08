@@ -1,4 +1,4 @@
-import { createSession, getSessions, getActiveTasks, updateTaskStatus } from '../services/sessionService.js';
+import { createSession, getSessions, getAllTasks, updateTaskStatus, deleteSession, deleteTaskFromSession } from '../services/sessionService.js';
 
 export const handleCreateSession = async (req, res) => {
   try {
@@ -26,7 +26,7 @@ export const handleGetSessions = async (req, res) => {
 
 export const handleGetTasks = async (req, res) => {
   try {
-    const tasks = await getActiveTasks();
+    const tasks = await getAllTasks();
     res.status(200).json(tasks);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -70,6 +70,26 @@ export const handleSeedData = async (req, res) => {
     };
     const session = await createSession(mockSession.transcript, mockSession.source_type, mockSession.ai_output);
     res.status(201).json({ success: true, message: 'Mock data seeded successfully', session_id: session._id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const handleDeleteSession = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await deleteSession(id);
+    res.status(200).json({ success: true, message: 'Session deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const handleDeleteTask = async (req, res) => {
+  try {
+    const { id, task_index } = req.params;
+    await deleteTaskFromSession(id, parseInt(task_index, 10));
+    res.status(200).json({ success: true, message: 'Task deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

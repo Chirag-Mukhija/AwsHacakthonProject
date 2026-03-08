@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography } from '../components/Typography';
 import { Card } from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
-import { Keyboard, CheckCircle2, Circle, Mic, GripVertical } from 'lucide-react-native';
+import { Keyboard, CheckCircle2, Circle, Mic, GripVertical, Trash2 } from 'lucide-react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
@@ -19,6 +21,17 @@ export const HomeScreen = () => {
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(true);
+  const [viewAll, setViewAll] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [recentlyToggled, setRecentlyToggled] = useState<Set<string>>(new Set());
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    if (hour < 21) return 'Good Evening';
+    return 'Good Night';
+  };
 
   useEffect(() => {
     if (isFocused) {
@@ -49,10 +62,27 @@ export const HomeScreen = () => {
   };
 
   const toggleTaskCompletion = async (sessionId: string, taskIndex: number, currentStatus: boolean) => {
+    const taskId = `${sessionId}-${taskIndex}`;
+    
+    // Add to recently toggled so it delays moving sections
+    setRecentlyToggled(prev => {
+      const newSet = new Set(prev);
+      newSet.add(taskId);
+      return newSet;
+    });
+
     // Optimistic update
     setTasks(prev => prev.map(t => 
       (t.session_id === sessionId && t.task_index === taskIndex) ? { ...t, completed: !currentStatus } : t
     ));
+
+    setTimeout(() => {
+      setRecentlyToggled(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskId);
+        return newSet;
+      });
+    }, 3500); // Wait 3.5 seconds before it disappears from the current list
 
     try {
       const response = await fetch(`http://192.168.1.4:3000/api/session/${sessionId}/task`, {
@@ -69,10 +99,31 @@ export const HomeScreen = () => {
     }
   };
 
+  const deleteTask = async (sessionId: string, taskIndex: number) => {
+    // Optimistic remove
+    setTasks(prev => prev.filter(t => !(t.session_id === sessionId && t.task_index === taskIndex)));
+    
+    try {
+      const response = await fetch(`http://192.168.1.4:3000/api/session/${sessionId}/task/${taskIndex}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Failed to delete backend');
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      fetchTasks();
+    }
+  };
+
+  const activeTasksList = tasks.filter(t => !t.completed || recentlyToggled.has(`${t.session_id}-${t.task_index}`));
+  const completedTasksList = tasks.filter(t => t.completed && !recentlyToggled.has(`${t.session_id}-${t.task_index}`));
+  
+  const currentListContext = showCompleted ? completedTasksList : activeTasksList;
+  const displayTasks = viewAll ? currentListContext : currentListContext.slice(0, 4);
+
   const renderHeader = () => (
     <View>
       <View style={styles.header}>
-        <Typography variant="h2">Good Morning</Typography>
+        <Typography variant="h2">{getGreeting()}</Typography>
         <Typography variant="body" color={colors.textSecondary}>Ready to capture some thoughts?</Typography>
       </View>
 
@@ -98,57 +149,91 @@ export const HomeScreen = () => {
       </View>
 
       {/* Bottom Half - Upcoming Tasks */}
-      <View style={styles.tasksHeader}>
-        <Typography variant="h3">Upcoming Tasks</Typography>
-        <TouchableOpacity>
-          <Typography variant="bodySmall" color={colors.primaryAction}>View all</Typography>
-        </TouchableOpacity>
+      <View style={{ marginBottom: 24 }}>
+        <View style={styles.tasksHeader}>
+          <TouchableOpacity 
+            onPress={() => setShowCompleted(false)}
+            style={[styles.filterTab, !showCompleted && { borderBottomColor: colors.primaryAction, borderBottomWidth: 2 }]}
+          >
+            <Typography variant="bodyLarge" style={{ fontWeight: !showCompleted ? '700' : '500' }} color={!showCompleted ? colors.text : colors.textSecondary}>Upcoming Tasks</Typography>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setShowCompleted(true)}
+            style={[styles.filterTab, showCompleted && { borderBottomColor: colors.primaryAction, borderBottomWidth: 2 }]}
+          >
+            <Typography variant="bodyLarge" style={{ fontWeight: showCompleted ? '700' : '500' }} color={showCompleted ? colors.text : colors.textSecondary}>Completed</Typography>
+          </TouchableOpacity>
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
+          {currentListContext.length > 4 && (
+            <TouchableOpacity onPress={() => setViewAll(!viewAll)}>
+              <Typography variant="bodySmall" color={colors.primaryAction}>{viewAll ? 'View less' : 'View all'}</Typography>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {loadingTasks && <ActivityIndicator color={colors.primaryAction} style={{ margin: 20 }} />}
-      {!loadingTasks && tasks.length === 0 && (
+      {!loadingTasks && displayTasks.length === 0 && (
         <Typography variant="body" color={colors.textSecondary} style={{ textAlign: 'center', marginVertical: 20 }}>
-          No active tasks.
+          {showCompleted ? 'No completed tasks.' : 'No active tasks.'}
         </Typography>
       )}
     </View>
   );
 
+  const renderRightActions = (sessionId: string, taskIndex: number) => {
+    return (
+      <View style={[styles.deleteSwipeAction, { backgroundColor: colors.danger || '#EF4444' }]}>
+        <TouchableOpacity style={styles.deleteButtonContainer} onPress={() => deleteTask(sessionId, taskIndex)}>
+          <Trash2 color={colors.white} size={24} />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   const renderItem = ({ item, drag, isActive }: RenderItemParams<any>) => (
     <ScaleDecorator>
-      <Card
-        style={[
-          styles.taskCard,
-          isActive && { elevation: 5, shadowOpacity: 0.1, borderColor: colors.primaryAction, borderWidth: 1 }
-        ]}
-        elevated={!isActive}
+      <Swipeable
+        renderRightActions={() => renderRightActions(item.session_id, item.task_index)}
+        containerStyle={styles.swipeableContainer}
+        friction={2}
+        rightThreshold={40}
       >
-        <TouchableOpacity
-          style={styles.taskRow}
-          onLongPress={drag}
-          onPress={() => toggleTaskCompletion(item.session_id, item.task_index, item.completed)}
-          activeOpacity={1}
-          disabled={isActive}
+        <Card
+          style={[
+            styles.taskCard,
+            isActive && { elevation: 5, shadowOpacity: 0.1, borderColor: colors.primaryAction, borderWidth: 1 }
+          ]}
+          elevated={!isActive}
         >
-          {item.completed ? (
-            <CheckCircle2 color={colors.success} size={24} />
-          ) : (
-            <Circle color={colors.textSecondary} size={24} />
-          )}
-          <Typography
-            variant="body"
-            style={[
-              styles.taskText,
-              item.completed && { textDecorationLine: 'line-through', color: colors.textSecondary }
-            ]}
+          <TouchableOpacity
+            style={styles.taskRow}
+            onLongPress={drag}
+            onPress={() => toggleTaskCompletion(item.session_id, item.task_index, item.completed)}
+            activeOpacity={1}
+            disabled={isActive}
           >
-            {item.title}
-          </Typography>
-          <TouchableOpacity onPressIn={drag} style={styles.dragHandle}>
-            <GripVertical color={colors.textSecondary} size={20} />
+            {item.completed ? (
+              <CheckCircle2 color={colors.success} size={24} />
+            ) : (
+              <Circle color={colors.textSecondary} size={24} />
+            )}
+            <Typography
+              variant="body"
+              style={[
+                styles.taskText,
+                item.completed && { textDecorationLine: 'line-through', color: colors.textSecondary }
+              ]}
+            >
+              {item.title}
+            </Typography>
+            <TouchableOpacity onPressIn={drag} style={styles.dragHandle}>
+              <GripVertical color={colors.textSecondary} size={20} />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </Card>
+        </Card>
+      </Swipeable>
     </ScaleDecorator>
   );
 
@@ -156,8 +241,15 @@ export const HomeScreen = () => {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.tasksSection}>
         <DraggableFlatList
-          data={tasks}
-          onDragEnd={({ data }) => setTasks(data)}
+          data={displayTasks}
+          onDragEnd={({ data }) => {
+            // Update local state without breaking partitioned subsets
+            const newOrderIds = data.map(d => `${d.session_id}-${d.task_index}`);
+            setTasks(prev => {
+              const otherTasks = prev.filter(t => !newOrderIds.includes(`${t.session_id}-${t.task_index}`));
+              return [...data, ...otherTasks];
+            });
+          }}
           keyExtractor={(item) => `${item.session_id}-${item.task_index}`}
           renderItem={renderItem}
           ListHeaderComponent={renderHeader}
@@ -215,9 +307,17 @@ const styles = StyleSheet.create({
   },
   tasksHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: 24,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  filterTab: {
+    paddingVertical: 12,
+    marginBottom: -1, // overlap the border
+    paddingHorizontal: 4,
   },
   tasksList: {
     gap: 12,
@@ -225,7 +325,7 @@ const styles = StyleSheet.create({
   taskCard: {
     padding: 16,
     borderRadius: 16,
-    marginBottom: 12, // Required since DraggableFlatList doesn't inherently support gap on older React Native wrappers
+    // marginBottom removed, now handled by swipeableContainer
   },
   taskRow: {
     flexDirection: 'row',
@@ -236,7 +336,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dragHandle: {
-    paddingLeft: 12,
+    paddingLeft: 4,
     paddingVertical: 4,
+  },
+  swipeableContainer: {
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  deleteSwipeAction: {
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    width: 80,
+    height: '100%',
+  },
+  deleteButtonContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

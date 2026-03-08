@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, TextInput } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography } from '../components/Typography';
 import { Button } from '../components/Button';
 import { useTheme } from '../context/ThemeContext';
@@ -35,6 +36,7 @@ export const SegregationScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<SegregationRouteProp>();
   const [data, setData] = useState(initialData);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (route.params?.extractedData) {
@@ -80,9 +82,54 @@ export const SegregationScreen = () => {
     }
   }, [route.params?.extractedData]);
 
-  const handleConfirm = () => {
-    // Navigate to History to show the results
-    navigation.replace('MainApp');
+  const handleConfirm = async () => {
+    setIsSaving(true);
+    try {
+      const finalTasks: any[] = [];
+      const finalReminders: any[] = [];
+      const finalEvents: any[] = [];
+      const finalNotes: any[] = [];
+
+      data.forEach(item => {
+        if (item.type === 'item' && item.completed && item.text.trim()) {
+           if (item.category === 'tasks') {
+             finalTasks.push({ title: item.text.trim(), completed: false });
+           } else if (item.category === 'reminders') {
+             finalReminders.push({ title: item.text.trim() });
+           } else if (item.category === 'events') {
+             finalEvents.push({ title: item.text.trim() });
+           } else if (item.category === 'notes') {
+             finalNotes.push(item.text.trim());
+           }
+        }
+      });
+
+      const payload = {
+        transcript: route.params?.extractedData?.transcript || 'Manual entry',
+        source_type: 'text',
+        ai_output: {
+          tasks: finalTasks,
+          reminders: finalReminders,
+          calendar_events: finalEvents,
+          notes: finalNotes
+        }
+      };
+
+      const response = await fetch('http://192.168.1.4:3000/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error('Failed to save session');
+
+      navigation.replace('MainApp');
+    } catch (error) {
+       console.error('Failed to save session:', error);
+       Alert.alert('Error', 'Could not sync session to the cloud. Try again.');
+    } finally {
+       setIsSaving(false);
+    }
   };
 
   const toggleComplete = (id: string) => {
@@ -185,7 +232,11 @@ export const SegregationScreen = () => {
       </View>
 
       <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.border, borderTopWidth: 1 }]}>
-        <Button title="Confirm and Add" onPress={handleConfirm} size="large" />
+        {isSaving ? (
+          <ActivityIndicator color={colors.primaryAction} style={{ padding: 14 }} />
+        ) : (
+          <Button title="Confirm and Add" onPress={handleConfirm} size="large" />
+        )}
       </View>
     </SafeAreaView>
   );

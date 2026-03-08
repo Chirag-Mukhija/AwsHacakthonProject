@@ -1,5 +1,4 @@
 import { extractStructuredData } from '../services/geminiService.js';
-import { createSession } from '../services/sessionService.js';
 
 export const handleExtraction = async (req, res) => {
   try {
@@ -11,9 +10,9 @@ export const handleExtraction = async (req, res) => {
 
     const structuredData = await extractStructuredData(text);
 
-    // Save the extraction event directly into MongoDB
-    await createSession(text, 'text', structuredData);
-
+    // Provide the extracted output to the client. The client will finalize edits 
+    // and explicitly call POST /api/session to persist to MongoDB.
+    
     return res.status(200).json(structuredData);
 
   } catch (error) {

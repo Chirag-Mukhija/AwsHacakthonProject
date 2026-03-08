@@ -1,0 +1,10 @@
+[dotenv@17.3.1] injecting env (3) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+✅ Swagger API documentation available at /api-docs
+🚀 Server running on port 3000
+Raw Gemini Output: {
+  "tasks": [],
+  "reminders": ["Call John tomorrow"],
+  "calendar_events": [],
+  "notes": []
+}
+[0mPOST /api/extract [32m200[0m 2546.021 ms - 126[0m

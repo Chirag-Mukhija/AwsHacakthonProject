@@ -1,0 +1,85 @@
+openapi: 3.0.0
+info:
+  title: Signal Backend API
+  description: MVP Backend for the Signal Productivity App
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local Development Server
+paths:
+  /api/transcribe:
+    post:
+      summary: Convert audio to text
+      description: Uploads an audio file and uses Groq Whisper to transcribe it.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: The audio file to transcribe
+      responses:
+        '200':
+          description: Successful transcription
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transcript:
+                    type: string
+        '400':
+          description: Missing audio file
+        '500':
+          description: Internal Server Error or API Failure
+
+  /api/extract:
+    post:
+      summary: Extract structured data from transcript
+      description: Uses Gemini 1.5 Flash to parse tasks, reminders, events, and notes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  description: The transcript text to process
+      responses:
+        '200':
+          description: Successfully extracted structured JSON
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transcript:
+                    type: string
+                  tasks:
+                    type: array
+                    items:
+                      type: string
+                  reminders:
+                    type: array
+                    items:
+                      type: string
+                  calendar_events:
+                    type: array
+                    items:
+                      type: string
+                  notes:
+                    type: array
+                    items:
+                      type: string
+        '400':
+          description: Missing text input
+        '500':
+          description: Internal Server Error or API Failure

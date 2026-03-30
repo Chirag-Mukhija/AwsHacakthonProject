@@ -10,6 +10,7 @@ import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
+import { API_URL } from '../config/api';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MainApp'>;
 
@@ -41,7 +42,7 @@ export const HomeScreen = () => {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch('http://192.168.1.4:3000/api/tasks');
+      const res = await fetch(`${API_URL}/api/tasks`);
       if (res.ok) {
         const data = await res.json();
         setTasks(data);
@@ -85,7 +86,7 @@ export const HomeScreen = () => {
     }, 3500); // Wait 3.5 seconds before it disappears from the current list
 
     try {
-      const response = await fetch(`http://192.168.1.4:3000/api/session/${sessionId}/task`, {
+      const response = await fetch(`${API_URL}/api/session/${sessionId}/task`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_index: taskIndex, completed: !currentStatus })
@@ -104,7 +105,7 @@ export const HomeScreen = () => {
     setTasks(prev => prev.filter(t => !(t.session_id === sessionId && t.task_index === taskIndex)));
     
     try {
-      const response = await fetch(`http://192.168.1.4:3000/api/session/${sessionId}/task/${taskIndex}`, {
+      const response = await fetch(`${API_URL}/api/session/${sessionId}/task/${taskIndex}`, {
         method: 'DELETE'
       });
       if (!response.ok) throw new Error('Failed to delete backend');

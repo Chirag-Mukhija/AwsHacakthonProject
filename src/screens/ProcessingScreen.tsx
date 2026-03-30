@@ -8,6 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { Alert } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing } from 'react-native-reanimated';
+import { API_URL } from '../config/api';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Processing'>;
 type ProcessingRouteProp = RouteProp<RootStackParamList, 'Processing'>;
@@ -33,7 +34,7 @@ export const ProcessingScreen = () => {
         }
 
         // Make API request (replace IP with localhost if on iOS Simulator)
-        const response = await fetch('http://192.168.1.4:3000/api/extract', {
+        const response = await fetch(`${API_URL}/api/extract`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: textToProcess }),
@@ -53,7 +54,7 @@ export const ProcessingScreen = () => {
         console.error('Processing connection error:', error);
         Alert.alert(
           'API Error', 
-          'Failed to extract data. Ensure the Node backend is running exactly at http://192.168.1.4:3000.', 
+          `Failed to extract data. Ensure the Node backend is running exactly at ${API_URL}.`, 
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       }

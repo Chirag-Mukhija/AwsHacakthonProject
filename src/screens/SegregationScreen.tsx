@@ -9,6 +9,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { CheckCircle2, Circle, GripVertical } from 'lucide-react-native';
+import { API_URL } from '../config/api';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Segregation'>;
 type SegregationRouteProp = RouteProp<RootStackParamList, 'Segregation'>;
@@ -115,7 +116,7 @@ export const SegregationScreen = () => {
         }
       };
 
-      const response = await fetch('http://192.168.1.4:3000/api/session', {
+      const response = await fetch(`${API_URL}/api/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

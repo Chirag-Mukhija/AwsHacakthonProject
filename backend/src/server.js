@@ -10,6 +10,7 @@ import { connectDB } from './config/db.js';
 
 // Route imports
 import transcribeRoutes from './routes/transcribe.js';
+import transcribeAudioRoutes from './routes/transcribeAudio.js';
 import extractRoutes from './routes/extract.js';
 import sessionRoutes from './routes/sessionRoutes.js';
 
@@ -37,6 +38,7 @@ try {
 
 // Routes
 app.use('/api/transcribe', transcribeRoutes);
+app.use('/api/transcribe-audio', transcribeAudioRoutes);
 app.use('/api/extract', extractRoutes);
 app.use('/api', sessionRoutes);
 

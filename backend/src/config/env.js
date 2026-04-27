@@ -6,6 +6,7 @@ export const config = {
   MONGODB_URI: process.env.MONGODB_URI,
   GROQ_API_KEY: process.env.GROQ_API_KEY,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  DEEPGRAM_API_KEY: process.env.DEEPGRAM_API_KEY,
 };
 
 if (!config.MONGODB_URI) {
@@ -19,4 +20,8 @@ if (!config.GROQ_API_KEY) {
 
 if (!config.GEMINI_API_KEY) {
   console.warn('⚠️ GEMINI_API_KEY is not defined in the environment variables');
+}
+
+if (!config.DEEPGRAM_API_KEY) {
+  console.warn('⚠️ DEEPGRAM_API_KEY is not defined in the environment variables');
 }

@@ -6,7 +6,7 @@ import { Card } from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
 import { Clock, ChevronDown, ChevronUp, FileText, CheckCircle2, Trash2, Bell } from 'lucide-react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { API_URL } from '../config/api';
+import { getApiUrl } from '../config/api';
 
 export const HistoryScreen = () => {
   const { colors } = useTheme();
@@ -23,7 +23,7 @@ export const HistoryScreen = () => {
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/sessions`);
+      const res = await fetch(`${getApiUrl()}/api/sessions`);
       if (res.ok) {
         const data = await res.json();
         setSessions(data);
@@ -50,7 +50,7 @@ export const HistoryScreen = () => {
     if (expandedId === id) setExpandedId(null);
     
     try {
-      const res = await fetch(`${API_URL}/api/session/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${getApiUrl()}/api/session/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete history');
     } catch (e) {
       console.error('Failed to delete session:', e);

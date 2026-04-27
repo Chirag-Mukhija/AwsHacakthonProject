@@ -8,7 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { Alert } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing } from 'react-native-reanimated';
-import { API_URL } from '../config/api';
+import { getApiUrl } from '../config/api';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Processing'>;
 type ProcessingRouteProp = RouteProp<RootStackParamList, 'Processing'>;
@@ -33,15 +33,24 @@ export const ProcessingScreen = () => {
           return;
         }
 
-        // Make API request (replace IP with localhost if on iOS Simulator)
-        const response = await fetch(`${API_URL}/api/extract`, {
+        const apiUrl = getApiUrl();
+        console.log('[ProcessingScreen] Extracting via:', apiUrl);
+
+        // Make API request
+        const response = await fetch(`${apiUrl}/api/extract`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: textToProcess }),
         });
 
         if (!response.ok) {
-          throw new Error('Backend responded with an error');
+          // Surface the actual error from the backend
+          let errMsg = `Server returned ${response.status}`;
+          try {
+            const errData = await response.json();
+            errMsg = errData.error || errMsg;
+          } catch { /* ignore */ }
+          throw new Error(errMsg);
         }
 
         const data = await response.json();
@@ -50,11 +59,11 @@ export const ProcessingScreen = () => {
           navigation.replace('Segregation', { extractedData: { ...data, transcript: textToProcess } });
         }, 1000); // give some buffer for animation
         
-      } catch (error) {
+      } catch (error: any) {
         console.error('Processing connection error:', error);
         Alert.alert(
-          'API Error', 
-          `Failed to extract data. Ensure the Node backend is running exactly at ${API_URL}.`, 
+          'Extraction Failed', 
+          error.message || 'Failed to extract data. Ensure the Node backend is running.',
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       }

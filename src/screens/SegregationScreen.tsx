@@ -8,8 +8,10 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
-import { CheckCircle2, Circle, GripVertical } from 'lucide-react-native';
-import { API_URL } from '../config/api';
+import { CheckCircle2, Circle, GripVertical, Calendar as CalendarIcon } from 'lucide-react-native';
+import DateTimePickerModal from "react-native-modal-datetime-picker";
+import { API_URL, getApiUrl } from '../config/api';
+import { createCalendarEvents } from '../utils/calendarUtils';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Segregation'>;
 type SegregationRouteProp = RouteProp<RootStackParamList, 'Segregation'>;
@@ -18,7 +20,7 @@ type ItemType = 'tasks' | 'reminders' | 'events' | 'notes';
 
 type ListItem = 
   | { type: 'header'; id: string; title: string; category: ItemType }
-  | { type: 'item'; id: string; category: ItemType; text: string; completed: boolean };
+  | { type: 'item'; id: string; category: ItemType; text: string; completed: boolean; start_iso?: string; end_iso?: string; };
 
 const initialData: ListItem[] = [
   { type: 'header', id: 'h-tasks', title: 'Tasks', category: 'tasks' },
@@ -38,6 +40,42 @@ export const SegregationScreen = () => {
   const route = useRoute<SegregationRouteProp>();
   const [data, setData] = useState(initialData);
   const [isSaving, setIsSaving] = useState(false);
+  
+  const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+  const [activeEventId, setActiveEventId] = useState<string | null>(null);
+
+  const showDatePicker = (id: string) => {
+    setActiveEventId(id);
+    setDatePickerVisibility(true);
+  };
+
+  const hideDatePicker = () => {
+    setDatePickerVisibility(false);
+    setActiveEventId(null);
+  };
+
+  const handleConfirmDate = (date: Date) => {
+    if (activeEventId) {
+      setData(prev => prev.map(item => {
+        if (item.type === 'item' && item.id === activeEventId) {
+          const start_iso = date.toISOString();
+          const end_iso = new Date(date.getTime() + 60 * 60 * 1000).toISOString();
+          return { ...item, start_iso, end_iso };
+        }
+        return item;
+      }));
+    }
+    hideDatePicker();
+  };
+
+  const formatDisplayDate = (isoString?: string) => {
+    if (!isoString) return 'No time set';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return date.toLocaleString('en-US', { 
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  };
 
   useEffect(() => {
     if (route.params?.extractedData) {
@@ -62,8 +100,18 @@ export const SegregationScreen = () => {
 
       if (calendar_events.length > 0) {
         formattedData.push({ type: 'header', id: 'h-events', title: 'Calendar Events', category: 'events' });
-        calendar_events.forEach((text: string) => {
-          formattedData.push({ type: 'item', id: `evt-${idCounter++}`, category: 'events', text, completed: true });
+        calendar_events.forEach((event: any) => {
+          // Fallback if event is a string from old mock data, otherwise use the object
+          const title = typeof event === 'string' ? event : (event.title || 'Event');
+          formattedData.push({ 
+            type: 'item', 
+            id: `evt-${idCounter++}`, 
+            category: 'events', 
+            text: title, 
+            completed: true,
+            start_iso: typeof event === 'object' ? event.start_iso : undefined,
+            end_iso: typeof event === 'object' ? event.end_iso : undefined
+          });
         });
       }
 
@@ -98,7 +146,11 @@ export const SegregationScreen = () => {
            } else if (item.category === 'reminders') {
              finalReminders.push({ title: item.text.trim() });
            } else if (item.category === 'events') {
-             finalEvents.push({ title: item.text.trim() });
+             finalEvents.push({ 
+               title: item.text.trim(),
+               start_iso: item.start_iso,
+               end_iso: item.end_iso
+             });
            } else if (item.category === 'notes') {
              finalNotes.push(item.text.trim());
            }
@@ -116,13 +168,19 @@ export const SegregationScreen = () => {
         }
       };
 
-      const response = await fetch(`${API_URL}/api/session`, {
+      const response = await fetch(`${getApiUrl()}/api/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) throw new Error('Failed to save session');
+
+      if (finalEvents.length > 0) {
+        createCalendarEvents(finalEvents).catch(err => {
+          console.error('Calendar integration failed non-fatally:', err);
+        });
+      }
 
       navigation.replace('MainApp');
     } catch (error) {
@@ -195,15 +253,28 @@ export const SegregationScreen = () => {
             )}
           </TouchableOpacity>
           
-          <TextInput
-            style={[
-              styles.input, 
-              { color: colors.text, textDecorationLine: !item.completed ? 'line-through' : 'none', opacity: !item.completed ? 0.5 : 1 }
-            ]}
-            value={item.text}
-            onChangeText={(text) => updateText(item.id, text)}
-            multiline
-          />
+          <View style={{ flex: 1 }}>
+            <TextInput
+              style={[
+                styles.input, 
+                { color: colors.text, textDecorationLine: !item.completed ? 'line-through' : 'none', opacity: !item.completed ? 0.5 : 1 }
+              ]}
+              value={item.text}
+              onChangeText={(text) => updateText(item.id, text)}
+              multiline
+            />
+            {item.category === 'events' && (
+              <TouchableOpacity 
+                style={styles.datePickerButton} 
+                onPress={() => showDatePicker(item.id)}
+              >
+                <CalendarIcon size={14} color={colors.primaryAction} />
+                <Typography variant="bodySmall" color={colors.primaryAction} style={{ marginLeft: 6, fontWeight: '600' }}>
+                  {formatDisplayDate(item.start_iso)}
+                </Typography>
+              </TouchableOpacity>
+            )}
+          </View>
 
           <TouchableOpacity onPressIn={drag} style={styles.dragHandle}>
             <GripVertical color={colors.textSecondary} size={24} />
@@ -239,6 +310,21 @@ export const SegregationScreen = () => {
           <Button title="Confirm and Add" onPress={handleConfirm} size="large" />
         )}
       </View>
+
+      <DateTimePickerModal
+        isVisible={isDatePickerVisible}
+        mode="datetime"
+        onConfirm={handleConfirmDate}
+        onCancel={hideDatePicker}
+        date={
+          activeEventId 
+            ? (() => {
+                const item = data.find(i => i.type === 'item' && i.id === activeEventId) as any;
+                return item?.start_iso ? new Date(item.start_iso) : new Date();
+              })()
+            : new Date()
+        }
+      />
     </SafeAreaView>
   );
 };
@@ -279,6 +365,16 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: '400',
     padding: 0,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)', // Subtle primary blue background
+    alignSelf: 'flex-start',
+    borderRadius: 8,
   },
   dragHandle: {
     paddingLeft: 12,

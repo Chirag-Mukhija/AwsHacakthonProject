@@ -13,7 +13,8 @@ const reminderSchema = new mongoose.Schema({
 
 const eventSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  datetime: { type: String }
+  start_iso: { type: String },
+  end_iso: { type: String }
 }, { _id: false });
 
 const aiOutputSchema = new mongoose.Schema({

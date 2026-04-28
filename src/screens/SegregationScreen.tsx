@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography } from '../components/Typography';
 import { Button } from '../components/Button';
@@ -8,8 +8,9 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
-import { CheckCircle2, Circle, GripVertical, Calendar as CalendarIcon } from 'lucide-react-native';
+import { CheckCircle2, Circle, GripVertical, Calendar as CalendarIcon, HelpCircle } from 'lucide-react-native';
 import DateTimePickerModal from "react-native-modal-datetime-picker";
+import * as Notifications from 'expo-notifications';
 import { API_URL, getApiUrl } from '../config/api';
 import { createCalendarEvents } from '../utils/calendarUtils';
 
@@ -20,7 +21,7 @@ type ItemType = 'tasks' | 'reminders' | 'events' | 'notes';
 
 type ListItem = 
   | { type: 'header'; id: string; title: string; category: ItemType }
-  | { type: 'item'; id: string; category: ItemType; text: string; completed: boolean; start_iso?: string; end_iso?: string; };
+  | { type: 'item'; id: string; category: ItemType; text: string; completed: boolean; start_iso?: string; end_iso?: string; scheduledTime?: string; };
 
 const initialData: ListItem[] = [
   { type: 'header', id: 'h-tasks', title: 'Tasks', category: 'tasks' },
@@ -40,9 +41,19 @@ export const SegregationScreen = () => {
   const route = useRoute<SegregationRouteProp>();
   const [data, setData] = useState(initialData);
   const [isSaving, setIsSaving] = useState(false);
+  const [isInfoVisible, setIsInfoVisible] = useState(false);
   
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Notification permissions not granted');
+      }
+    })();
+  }, []);
 
   const showDatePicker = (id: string) => {
     setActiveEventId(id);
@@ -58,9 +69,13 @@ export const SegregationScreen = () => {
     if (activeEventId) {
       setData(prev => prev.map(item => {
         if (item.type === 'item' && item.id === activeEventId) {
-          const start_iso = date.toISOString();
-          const end_iso = new Date(date.getTime() + 60 * 60 * 1000).toISOString();
-          return { ...item, start_iso, end_iso };
+          if (item.category === 'events') {
+            const start_iso = date.toISOString();
+            const end_iso = new Date(date.getTime() + 60 * 60 * 1000).toISOString();
+            return { ...item, start_iso, end_iso };
+          } else if (item.category === 'reminders') {
+            return { ...item, scheduledTime: date.toISOString() };
+          }
         }
         return item;
       }));
@@ -84,50 +99,45 @@ export const SegregationScreen = () => {
       const formattedData: ListItem[] = [];
       let idCounter = 0;
       
-      if (tasks.length > 0) {
-        formattedData.push({ type: 'header', id: 'h-tasks', title: 'Tasks', category: 'tasks' });
-        tasks.forEach((text: string) => {
-          formattedData.push({ type: 'item', id: `task-${idCounter++}`, category: 'tasks', text, completed: true });
-        });
-      }
+      formattedData.push({ type: 'header', id: 'h-tasks', title: 'Tasks', category: 'tasks' });
+      tasks.forEach((text: string) => {
+        formattedData.push({ type: 'item', id: `task-${idCounter++}`, category: 'tasks', text, completed: true });
+      });
       
-      if (reminders.length > 0) {
-        formattedData.push({ type: 'header', id: 'h-reminders', title: 'Reminders', category: 'reminders' });
-        reminders.forEach((text: string) => {
-          formattedData.push({ type: 'item', id: `rem-${idCounter++}`, category: 'reminders', text, completed: true });
+      formattedData.push({ type: 'header', id: 'h-reminders', title: 'Reminders', category: 'reminders' });
+      reminders.forEach((reminderObj: any) => {
+        const text = typeof reminderObj === 'string' ? reminderObj : (reminderObj.title || 'Reminder');
+        // Basic default 1 hour from now
+        const defaultTime = new Date(Date.now() + 3600000).toISOString();
+        formattedData.push({ type: 'item', id: `rem-${idCounter++}`, category: 'reminders', text, completed: true, scheduledTime: defaultTime });
+      });
+
+      formattedData.push({ type: 'header', id: 'h-events', title: 'Calendar Events', category: 'events' });
+      calendar_events.forEach((event: any) => {
+        // Fallback if event is a string from old mock data, otherwise use the object
+        const title = typeof event === 'string' ? event : (event.title || 'Event');
+        formattedData.push({ 
+          type: 'item', 
+          id: `evt-${idCounter++}`, 
+          category: 'events', 
+          text: title, 
+          completed: true,
+          start_iso: typeof event === 'object' ? event.start_iso : undefined,
+          end_iso: typeof event === 'object' ? event.end_iso : undefined
         });
+      });
+
+      formattedData.push({ type: 'header', id: 'h-notes', title: 'Notes', category: 'notes' });
+      notes.forEach((text: string) => {
+        formattedData.push({ type: 'item', id: `note-${idCounter++}`, category: 'notes', text, completed: true });
+      });
+      
+      const hasItems = tasks.length > 0 || reminders.length > 0 || calendar_events.length > 0 || notes.length > 0;
+      if (!hasItems) {
+        formattedData.push({ type: 'item', id: 'note-0', category: 'notes', text: route.params.extractedData.transcript || 'No data generated', completed: true });
       }
 
-      if (calendar_events.length > 0) {
-        formattedData.push({ type: 'header', id: 'h-events', title: 'Calendar Events', category: 'events' });
-        calendar_events.forEach((event: any) => {
-          // Fallback if event is a string from old mock data, otherwise use the object
-          const title = typeof event === 'string' ? event : (event.title || 'Event');
-          formattedData.push({ 
-            type: 'item', 
-            id: `evt-${idCounter++}`, 
-            category: 'events', 
-            text: title, 
-            completed: true,
-            start_iso: typeof event === 'object' ? event.start_iso : undefined,
-            end_iso: typeof event === 'object' ? event.end_iso : undefined
-          });
-        });
-      }
-
-      if (notes.length > 0) {
-        formattedData.push({ type: 'header', id: 'h-notes', title: 'Notes', category: 'notes' });
-        notes.forEach((text: string) => {
-          formattedData.push({ type: 'item', id: `note-${idCounter++}`, category: 'notes', text, completed: true });
-        });
-      }
-      
-      if (formattedData.length > 0) {
-        setData(formattedData);
-      } else {
-        // If everything is completely empty, maybe just show a note
-        setData([{ type: 'header', id: 'h-notes', title: 'Notes', category: 'notes' }, { type: 'item', id: 'note-0', category: 'notes', text: route.params.extractedData.transcript || 'No data generated', completed: true }]);
-      }
+      setData(formattedData);
     }
   }, [route.params?.extractedData]);
 
@@ -139,12 +149,29 @@ export const SegregationScreen = () => {
       const finalEvents: any[] = [];
       const finalNotes: any[] = [];
 
-      data.forEach(item => {
+      // Using a sequential for loop because we have async await for Notifications
+      for (const item of data) {
         if (item.type === 'item' && item.completed && item.text.trim()) {
            if (item.category === 'tasks') {
              finalTasks.push({ title: item.text.trim(), completed: false });
            } else if (item.category === 'reminders') {
-             finalReminders.push({ title: item.text.trim() });
+             const scheduledTime = item.scheduledTime || new Date(Date.now() + 3600000).toISOString();
+             try {
+               const notificationId = await Notifications.scheduleNotificationAsync({
+                 content: {
+                   title: item.text.trim(),
+                   body: 'Reminder from app',
+                 },
+                 trigger: {
+                   type: Notifications.SchedulableTriggerInputTypes.DATE,
+                   date: new Date(scheduledTime),
+                 },
+               });
+               finalReminders.push({ title: item.text.trim(), scheduledTime, notificationId });
+             } catch (err) {
+               console.error("Failed to schedule notification:", err);
+               finalReminders.push({ title: item.text.trim(), scheduledTime });
+             }
            } else if (item.category === 'events') {
              finalEvents.push({ 
                title: item.text.trim(),
@@ -155,7 +182,7 @@ export const SegregationScreen = () => {
              finalNotes.push(item.text.trim());
            }
         }
-      });
+      }
 
       const payload = {
         transcript: route.params?.extractedData?.transcript || 'Manual entry',
@@ -263,14 +290,14 @@ export const SegregationScreen = () => {
               onChangeText={(text) => updateText(item.id, text)}
               multiline
             />
-            {item.category === 'events' && (
+            {(item.category === 'events' || item.category === 'reminders') && (
               <TouchableOpacity 
                 style={styles.datePickerButton} 
                 onPress={() => showDatePicker(item.id)}
               >
                 <CalendarIcon size={14} color={colors.primaryAction} />
                 <Typography variant="bodySmall" color={colors.primaryAction} style={{ marginLeft: 6, fontWeight: '600' }}>
-                  {formatDisplayDate(item.start_iso)}
+                  {formatDisplayDate(item.category === 'events' ? item.start_iso : item.scheduledTime)}
                 </Typography>
               </TouchableOpacity>
             )}
@@ -286,11 +313,16 @@ export const SegregationScreen = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <Typography variant="h2">Segregation</Typography>
-        <Typography variant="body" color={colors.textSecondary}>
-          Review and organize your extracted items.
-        </Typography>
+      <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }]}>
+        <View>
+          <Typography variant="h2">Segregation</Typography>
+          <Typography variant="body" color={colors.textSecondary}>
+            Review and organize your extracted items.
+          </Typography>
+        </View>
+        <TouchableOpacity onPress={() => setIsInfoVisible(true)} style={{ padding: 4 }}>
+          <HelpCircle color={colors.textSecondary} size={24} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.listContainer}>
@@ -307,24 +339,55 @@ export const SegregationScreen = () => {
         {isSaving ? (
           <ActivityIndicator color={colors.primaryAction} style={{ padding: 14 }} />
         ) : (
-          <Button title="Confirm and Add" onPress={handleConfirm} size="large" />
+          <View style={styles.footerButtons}>
+            <Button 
+              title="Delete" 
+              variant="secondary" 
+              onPress={() => navigation.goBack()} 
+              size="large" 
+              containerStyle={{ flex: 1, marginRight: 12 }}
+            />
+            <Button 
+              title="Confirm and Add" 
+              onPress={handleConfirm} 
+              size="large" 
+              containerStyle={{ flex: 2 }}
+            />
+          </View>
         )}
       </View>
 
       <DateTimePickerModal
         isVisible={isDatePickerVisible}
         mode="datetime"
+        themeVariant={isDark ? "dark" : "light"}
+        isDarkModeEnabled={isDark}
         onConfirm={handleConfirmDate}
         onCancel={hideDatePicker}
         date={
           activeEventId 
             ? (() => {
                 const item = data.find(i => i.type === 'item' && i.id === activeEventId) as any;
-                return item?.start_iso ? new Date(item.start_iso) : new Date();
+                if (item?.category === 'events' && item.start_iso) return new Date(item.start_iso);
+                if (item?.category === 'reminders' && item.scheduledTime) return new Date(item.scheduledTime);
+                return new Date();
               })()
             : new Date()
         }
       />
+
+      <Modal visible={isInfoVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.infoModal, { backgroundColor: colors.card }]}>
+            <Typography variant="h3" style={{ marginBottom: 16 }}>Categories</Typography>
+            <Typography variant="body" style={{ marginBottom: 8 }}>• Tasks: Items to complete (no fixed time).</Typography>
+            <Typography variant="body" style={{ marginBottom: 8 }}>• Reminders: Alerts at a specific time.</Typography>
+            <Typography variant="body" style={{ marginBottom: 8 }}>• Calendar: Scheduled events with time.</Typography>
+            <Typography variant="body" style={{ marginBottom: 24 }}>• Notes: General info to remember.</Typography>
+            <Button title="Got it" onPress={() => setIsInfoVisible(false)} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -382,5 +445,27 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 24,
+  },
+  footerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  infoModal: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
   },
 });

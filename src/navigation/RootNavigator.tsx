@@ -7,6 +7,7 @@ import { RecordingScreen } from '../screens/RecordingScreen';
 import { TranscriptionScreen } from '../screens/TranscriptionScreen';
 import { ProcessingScreen } from '../screens/ProcessingScreen';
 import { SegregationScreen } from '../screens/SegregationScreen';
+import { NotesScreen } from '../screens/NotesScreen';
 import { useTheme } from '../context/ThemeContext';
 
 export type RootStackParamList = {
@@ -16,6 +17,7 @@ export type RootStackParamList = {
   Transcription: { initialTranscript?: string } | undefined;
   Processing: { textToProcess: string };
   Segregation: { extractedData?: any } | undefined;
+  Notes: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -52,6 +54,7 @@ export const RootNavigator = () => {
         <Stack.Screen name="Transcription" component={TranscriptionScreen} />
         <Stack.Screen name="Processing" component={ProcessingScreen} />
         <Stack.Screen name="Segregation" component={SegregationScreen} />
+        <Stack.Screen name="Notes" component={NotesScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -6,6 +6,7 @@ import { Card } from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
 import { Clock, ChevronDown, ChevronUp, FileText, CheckCircle2, Trash2, Bell } from 'lucide-react-native';
 import { useIsFocused } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { getApiUrl } from '../config/api';
 
 export const HistoryScreen = () => {
@@ -45,6 +46,15 @@ export const HistoryScreen = () => {
   };
 
   const deleteSession = async (id: string) => {
+    const sessionToDelete = sessions.find(s => s.id === id);
+    if (sessionToDelete && sessionToDelete.ai_output?.reminders) {
+      sessionToDelete.ai_output.reminders.forEach((r: any) => {
+        if (r.notificationId) {
+          Notifications.cancelScheduledNotificationAsync(r.notificationId).catch(console.error);
+        }
+      });
+    }
+
     // Optimistic removal
     setSessions(prev => prev.filter(s => s.id !== id));
     if (expandedId === id) setExpandedId(null);

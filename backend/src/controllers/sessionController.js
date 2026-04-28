@@ -1,4 +1,4 @@
-import { createSession, getSessions, getAllTasks, updateTaskStatus, deleteSession, deleteTaskFromSession } from '../services/sessionService.js';
+import { createSession, getSessions, getAllTasks, updateTaskStatus, deleteSession, deleteTaskFromSession, getAllReminders, updateReminder, getAllNotes } from '../services/sessionService.js';
 
 export const handleCreateSession = async (req, res) => {
   try {
@@ -90,6 +90,36 @@ export const handleDeleteTask = async (req, res) => {
     const { id, task_index } = req.params;
     await deleteTaskFromSession(id, parseInt(task_index, 10));
     res.status(200).json({ success: true, message: 'Task deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const handleGetReminders = async (req, res) => {
+  try {
+    const reminders = await getAllReminders();
+    res.status(200).json(reminders);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const handleUpdateReminder = async (req, res) => {
+  try {
+    const { id, reminderId } = req.params;
+    const { scheduledTime, notificationId } = req.body;
+    
+    const updatedSession = await updateReminder(id, reminderId, scheduledTime, notificationId);
+    res.status(200).json({ success: true, session: updatedSession });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const handleGetNotes = async (req, res) => {
+  try {
+    const notes = await getAllNotes();
+    res.status(200).json(notes);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -22,7 +22,12 @@ Rules for extraction:
 Output Schema:
 {
   "tasks": ["Task 1", "Task 2"],
-  "reminders": ["Reminder 1"],
+  "reminders": [
+    {
+      "title": "Reminder 1",
+      "time_hint": "tomorrow 9 AM"
+    }
+  ],
   "calendar_events": [
     {
       "title": "Event 1",

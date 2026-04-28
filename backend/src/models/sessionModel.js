@@ -8,8 +8,10 @@ const taskSchema = new mongoose.Schema({
 
 const reminderSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  time: { type: String }
-}, { _id: false });
+  time: { type: String }, // Old field, maybe time_hint
+  scheduledTime: { type: String },
+  notificationId: { type: String }
+});
 
 const eventSchema = new mongoose.Schema({
   title: { type: String, required: true },
@@ -17,11 +19,16 @@ const eventSchema = new mongoose.Schema({
   end_iso: { type: String }
 }, { _id: false });
 
+const noteSchema = new mongoose.Schema({
+  content: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
 const aiOutputSchema = new mongoose.Schema({
   tasks: [taskSchema],
   reminders: [reminderSchema],
   calendar_events: [eventSchema],
-  notes: [{ type: String }]
+  notes: [noteSchema]
 }, { _id: false });
 
 const sessionSchema = new mongoose.Schema({
